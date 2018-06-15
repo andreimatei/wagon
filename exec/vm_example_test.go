@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"log"
 	"reflect"
+	"testing"
 
 	"github.com/go-interpreter/wagon/exec"
 	"github.com/go-interpreter/wagon/wasm"
@@ -115,4 +116,122 @@ func compileWast2Wasm(fname string) ([]byte, error) {
 		return ioutil.ReadFile("testdata/add-ex-main.wasm")
 	}
 	return nil, fmt.Errorf("unknown wast test file %q", fname)
+}
+
+func TestAdd(t *testing.T) {
+	src, err := ioutil.ReadFile("add.wasm")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := wasm.ReadModule(bytes.NewReader(src), func(name string) (*wasm.Module, error) {
+		switch name {
+		case "go":
+			print := func(v int32) {
+				fmt.Printf("result = %v\n", v)
+			}
+
+			m := wasm.NewModule()
+			m.Types = &wasm.SectionTypes{
+				Entries: []wasm.FunctionSig{
+					{
+						Form:       0,
+						ParamTypes: []wasm.ValueType{wasm.ValueTypeI32},
+					},
+				},
+			}
+			m.FunctionIndexSpace = []wasm.Function{
+				{
+					Sig:  &m.Types.Entries[0],
+					Host: reflect.ValueOf(print),
+					Body: &wasm.FunctionBody{},
+				},
+			}
+			m.Export = &wasm.SectionExports{
+				Entries: map[string]wasm.ExportEntry{
+					"print": {
+						FieldStr: "print",
+						Kind:     wasm.ExternalFunction,
+						Index:    0,
+					},
+				},
+			}
+
+			return m, nil
+		}
+		return nil, fmt.Errorf("module %q unknown", name)
+	})
+
+	fmt.Printf("!!! funcs: %+v\n", m.FunctionIndexSpace)
+
+	vm, err := exec.NewVM(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const funIdx = 0 // index of function fct1
+	out, err := vm.ExecCode(funIdx, 5, 6)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Printf("fct1() -> (%T) %v\n", out, out)
+}
+
+func TestFact(t *testing.T) {
+	src, err := ioutil.ReadFile("fact.wasm")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := wasm.ReadModule(bytes.NewReader(src), func(name string) (*wasm.Module, error) {
+		switch name {
+		case "go":
+			print := func(v int32) {
+				fmt.Printf("result = %v\n", v)
+			}
+
+			m := wasm.NewModule()
+			m.Types = &wasm.SectionTypes{
+				Entries: []wasm.FunctionSig{
+					{
+						Form:       0,
+						ParamTypes: []wasm.ValueType{wasm.ValueTypeI32},
+					},
+				},
+			}
+			m.FunctionIndexSpace = []wasm.Function{
+				{
+					Sig:  &m.Types.Entries[0],
+					Host: reflect.ValueOf(print),
+					Body: &wasm.FunctionBody{},
+				},
+			}
+			m.Export = &wasm.SectionExports{
+				Entries: map[string]wasm.ExportEntry{
+					"print": {
+						FieldStr: "print",
+						Kind:     wasm.ExternalFunction,
+						Index:    0,
+					},
+				},
+			}
+
+			return m, nil
+		}
+		return nil, fmt.Errorf("module %q unknown", name)
+	})
+
+	fmt.Printf("!!! funcs: %+v\n", m.FunctionIndexSpace)
+
+	vm, err := exec.NewVM(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const funIdx = 0 // index of function fct1
+	out, err := vm.ExecCode(funIdx, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Printf("fct1() -> (%T) %v\n", out, out)
 }
